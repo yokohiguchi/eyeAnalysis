@@ -6,39 +6,82 @@ function D = pupilAnalysis
 clear; clear all;
 
 % input
+gType = input('Group type? (1:with training, 2:w/o training) :  ');
+tType = input('Test type? (1:pre, 2:post, 3:re) :  ');
 pp = input('Plot trial data? (y/n) :  ', 's');
 
-ID = ['02';'03';'04';'05';'06';'08';'09';'11';'12';'14';'15';'16';'17';'21';'22';'24'];
-name = ['MH';'JY';'MN';'YM';'AU';'TM';'KK';'NW';'TW';'KT';'AS';'HK';'TI';'MK';'NK';'NF'];
+if gType == 1
+    ID = ['02';'03';'04';'05';'06';'08';'09';'11';'12';'14';'15';'16';'17';'21';'22';'24'];
+    name = ['MH';'JY';'MN';'YM';'AU';'TM';'KK';'NW';'TW';'KT';'AS';'HK';'TI';'MK';'NK';'NF'];
+    if tType == 1
+        el_dir = 'data/eye_pre/';
+        behav_dir = 'data/mat_pre/';
+        fig_dir = 'figure/pupil_pre/';
+    elseif tType == 2
+        el_dir = 'data/eye_post/';
+        behav_dir = 'data/mat_post/';
+        fig_dir = 'figure/pupil_post/';
+    elseif tType == 3
+        el_dir = 'data/eye_re/';
+        behav_dir = 'data/mat_re/';
+        fig_dir = 'figure/pupil_re/';
+    end
+else
+    ID = ['01';'02';'03';'04';'05';'06';'07';'08';'09';'10';'11';'12';'13';'14';'15';'16'];
+    name = ['RC';'MT';'KO';'EI';'MY';'MM';'SM';'RU';'YU';'NW';'RF';'RK';'KM';'MM';'TM';'DS'];
+    if tType == 1
+        el_dir = 'data/eye_pre_ctrl/';
+        behav_dir = 'data/mat_pre_ctrl/';
+        fig_dir = 'figure/pupil_pre_ctrl/';
+    elseif tType == 2
+        el_dir = 'data/eye_post_ctrl/';
+        behav_dir = 'data/mat_post_ctrl/';
+        fig_dir = 'figure/pupil_post_ctrl/';
+    end
+    
+end
 
 nSubject = length(ID);
 
-for sub = 1
+for sub = 1:nSubject
     
-    for bb = 2:4
-        if bb == 1
-            sess = 1; r = 3;
-        else
-            sess = 2; r = bb-1;
-        end
+    fprintf('.');
+    
+    for bb = 1:4
         
         % Load data
-        el...
-            = strcat('data/eye_pre/',ID(sub,:),name(sub,:),...
-            num2str(sess),num2str(r),'yh_eye.mat');
-        behav...
-            = strcat('data/mat_pre/',ID(sub,:),'_',name(sub,:),...
-            '_',num2str(sess),'_',num2str(r),'.mat');
+        if tType == 1
+            if bb == 1
+                sess = 1; r = 3;
+            else
+                sess = 2; r = bb-1;
+            end
+            el...
+                = strcat(el_dir,ID(sub,:),name(sub,:),...
+                num2str(sess),num2str(r),'yh_eye.mat');
+            behav...
+                = strcat(behav_dir,ID(sub,:),'_',name(sub,:),...
+                '_',num2str(sess),'_',num2str(r),'.mat');
+        else
+            el...
+                = strcat(el_dir,ID(sub,:),name(sub,:),...
+                'T',num2str(bb),'yh_eye.mat');
+            behav...
+                = strcat(behav_dir,ID(sub,:),'_',name(sub,:),...
+                '_T_',num2str(bb),'.mat');
+        end
         
         load(el);
         load(behav);
         
-        for trl=1:STARTtime(end,1)
+        nn=0;empIdx = [];
+        for trl=1:MSGtime(end,1)
             
             if pp == 'y'
                 % Figure setting
                 if mod(trl,20)==1
-                    figure(...
+                    nn=nn+1;
+                    h = figure(...
                         'InvertHardcopy', 'off',...
                         'Color', [1 1 1],...
                         'Position', [0 0 1600 1600]);
@@ -50,104 +93,156 @@ for sub = 1
             c.etime = ENDtime(trl,2);
             c.dtime = MSGtime(MSGtime(:,1)==trl & MSGtime(:,3)==2,2); % Disk presentation
             
+            if isempty(c.dtime)
+                c.dtime = MSGtime(MSGtime(:,1)==trl & MSGtime(:,3)==1,2)+8;
+            end
+            
             % Rawdata(trl,time,x,y,pupil size, 0)
             c.trl_RawData = RawData(RawData(:,2)>=c.stime & RawData(:,2)<=c.etime,:);
-            c.nData = length(c.trl_RawData);
-            c.start_end = [c.trl_RawData(1,2)-c.dtime c.trl_RawData(end,2)-c.dtime];
+            c.nData = size(c.trl_RawData,1);
             
-            % Calculate max dilation speeds
-            for ii = 2:c.nData-1
-                c.maxDilationSpeeds(ii)...
-                    = max(abs((c.trl_RawData(ii,5)-c.trl_RawData(ii-1,5))...
-                    /(c.trl_RawData(ii,2)-c.trl_RawData(ii-1,2))),...
-                    abs((c.trl_RawData(ii+1,5)-c.trl_RawData(ii,5))...
-                    /(c.trl_RawData(ii+1,2)-c.trl_RawData(ii,2))));
-            end
-            c.mds = [NaN c.maxDilationSpeeds]';
-            c.tRawData = [c.trl_RawData c.mds];
-            
-            % Calculate threshold
-            n=1; %consistent value
-            c.thresh = median(c.maxDilationSpeeds)...
-                + (n * median(abs(c.maxDilationSpeeds-median(c.maxDilationSpeeds))));
-            
-            % Count blinks
-            % EBLINK(trl,0,stime,etime,dur)
-            c.trl_EBLINK = EBLINK(EBLINK(:,1)==trl,:);
-            c.nBlink = size(c.trl_EBLINK,1);
-            
-            %% Detecting noise with blinks
-            if c.nBlink>0
-                % Change invalid data to NaN
-                for ii = 1:c.nBlink
-                    c.tRawData...
-                        (c.tRawData(:,2)>=c.trl_EBLINK(ii,3)-200 ...
-                        & c.tRawData(:,2)<=c.trl_EBLINK(ii,4)+200 ...
-                        & c.tRawData(:,end)>c.thresh,5)...
-                        = NaN;
+            if c.nData < 50
+                c.start_end = [NaN NaN];
+                c.tRawData = NaN;
+                c.maxDilationSpeeds = NaN;
+                c.mds = NaN;
+                c.thresh = NaN;
+                c.trl_EBLINK = [];
+                c.nBlink = NaN;
+                c.ppldat = NaN;
+                c.dilation = NaN;
+                D.sub(sub).data(bb).trial(trl)=c;
+                empIdx = [empIdx trl];
+                clear c idx
+            else
+                if gType == 2
+                    c.trl_RawData(:,5) =(c.trl_RawData(:,5)/2).^2*pi/10000;
                 end
-            end
-            
-            %     %% Detecting noise without blinks
-            %     c.tRawData...
-            %         ( c.tRawData(:,end)>c.thresh,5)...
-            %         = NaN;
-            
-            % Up sampling rate
-            idx = c.tRawData(1,2)-c.dtime:c.tRawData(end,2)-c.dtime;
-            c.ppldat(:,1) = idx;
-            
-            for ii = 1:length(idx)
-                l = find(idx(ii)==c.tRawData(:,2)-c.dtime);
-                if isempty(l)
-                    c.ppldat(ii,2) = NaN;
-                else
-                    c.ppldat(ii,2) = c.tRawData(l,5);
+                
+                c.start_end = [c.trl_RawData(1,2)-c.dtime c.trl_RawData(end,2)-c.dtime];
+                
+                c.tRawData = c.trl_RawData;
+                
+                %                 % Detect noise
+                %                 if ~isempty(c.tRawData(c.tRawData(1,5)-c.tRawData(:,5)>300,5))
+                %                     c.tRawData(c.tRawData(1,5)-c.tRawData(:,5)>300,:)=[];
+                %                 end
+                
+                % Calculate max dilation speeds
+                for ii = 2:length(c.tRawData)-1
+                    c.maxDilationSpeeds(ii)...
+                        = max(abs((c.tRawData(ii,5)-c.tRawData(ii-1,5))...
+                        /(c.tRawData(ii,2)-c.tRawData(ii-1,2))),...
+                        abs((c.tRawData(ii+1,5)-c.tRawData(ii,5))...
+                        /(c.tRawData(ii+1,2)-c.tRawData(ii,2))));
                 end
-                clear ID
-            end
-            
-            % Fill missing data
-            % fillmiss_linear: linear interpolation
-            % fillmiss: spline interpolation
-            c.ppldat(:,2) = fillmiss_linear(c.ppldat(:,2));
-            
-            % Plot trial data
-            if pp == 'y'
-                if mod(trl,20)==0
-                    subplot(4,5,20)
-                else
-                    subplot(4,5,mod(trl,20))
+                c.mds = [NaN c.maxDilationSpeeds]';
+                c.tRawData = [c.tRawData c.mds];
+                
+                % Calculate threshold
+                n=1; %consistent value
+                c.thresh = median(c.maxDilationSpeeds)...
+                    + (n * median(abs(c.maxDilationSpeeds-median(c.maxDilationSpeeds))));
+                
+                % Count blinks
+                % EBLINK(trl,0,stime,etime,dur)
+                c.trl_EBLINK = EBLINK(EBLINK(:,1)==trl,:);
+                c.nBlink = size(c.trl_EBLINK,1);
+                
+                % Detect noise with blinks
+                if c.nBlink>0
+                    % Change invalid data to NaN
+                    for ii = 1:c.nBlink
+                        c.tRawData...
+                            (c.tRawData(:,2)>=c.trl_EBLINK(ii,3) ...
+                            & c.tRawData(:,2)<=c.trl_EBLINK(ii,4)+200,5)= NaN;
+                        c.tRawData...
+                            (c.tRawData(:,2)<=c.trl_EBLINK(ii,3) ...
+                            & c.tRawData(:,2)>=c.trl_EBLINK(ii,3)-30,5)= NaN;
+                    end
                 end
-                plot(c.trl_RawData(:,2)- c.dtime,c.trl_RawData(:,5),'r--'); hold on;
-                %     plot(c.tRawData(:,2)- c.dtime,c.tRawData(:,5),'k');
-                plot(c.ppldat(:,1),c.ppldat(:,2),'k')
-                title(['Trial' num2str(trl)]);
-            end
-            
-            % Normalize data
-            c.dilation = (c.ppldat(c.ppldat(:,1)==0,2)-c.ppldat(1,2))/c.ppldat(1,2);
-            c.ppldat(:,2) = (c.ppldat(:,2)-c.ppldat(1,2))/c.ppldat(1,2);
-            
-            D.trial(trl)=c;
-            
+                
+                % Detect noise
+                c.tRawData...
+                    (c.tRawData(:,end)>c.thresh,5)...
+                    = NaN;
+                
+                % Up sampling rate
+                idx = c.tRawData(1,2)-c.dtime:c.tRawData(end,2)-c.dtime;
+                c.ppldat(:,1) = idx;
+                
+                for ii = 1:length(idx)
+                    l = find(idx(ii)==c.tRawData(:,2)-c.dtime);
+                    if isempty(l)
+                        c.ppldat(ii,2) = NaN;
+                    else
+                        c.ppldat(ii,2) = c.tRawData(l,5);
+                    end
+                end
+                
+                % Fill missing data
+                % fillmiss_linear: linear interpolation
+                % fillmiss: spline interpolation
+                c.ppldat(:,2) = fillmiss_linear(c.ppldat(:,2));
+                
+                % Plot trial data
+                if pp == 'y'
+                    if mod(trl,20)==0
+                        subplot(4,5,20)
+                    else
+                        subplot(4,5,mod(trl,20))
+                    end
+                    plot(c.trl_RawData(:,2)- c.dtime,c.trl_RawData(:,5),'r--'); hold on;
+                    plot(c.tRawData(:,2)- c.dtime,c.tRawData(:,5),'k');
+                    plot(c.ppldat(:,1),c.ppldat(:,2),'k')
+                    yl=get(gca,'ylim');
+                    xl=get(gca,'xlim');
+                    text(xl(1),yl(2),[num2str(c.nBlink) 'blinks']);
+                    title(['Trial' num2str(trl)]);
+                    drawnow;
+                    
+                    if mod(trl,20)==0 ||trl==MSGtime(end,1)
+                        
+                        if tType == 1
+                            filename...
+                                = strcat(fig_dir,ID(sub,:),name(sub,:),...
+                                num2str(sess),num2str(r),'_',num2str(nn),'.fig');
+                        else
+                            filename...
+                                = strcat(fig_dir,ID(sub,:),name(sub,:),...
+                                'T',num2str(bb),'_',num2str(nn),'.fig');
+                        end
+                        
+                        savefig(h,filename);
+                        close(h);
+                    end
+                end
+                
+                % Normalize data
+                c.dilation = (c.ppldat(c.ppldat(:,1)==0,2)-c.ppldat(1,2))/c.ppldat(1,2);
+                c.ppldat(:,2) = (c.ppldat(:,2)-c.ppldat(1,2))/c.ppldat(1,2);
+                
+                D.sub(sub).data(bb).trial(trl)=c;
+            end % if c.nData == 0
             clear c idx
-            
-        end
-        
-        %% Calculate the mean of each condition
+        end % for trl
         
         % Create summary data with -3000ms to 1000ms range
-        idx = -3000:1000;
-        allData = NaN(length(D.trial),length(idx));
+        idx = -3000:1000; dd = D.sub(sub).data(bb);
+        allData = NaN(length(dd.trial),length(idx));
         
-        for trl = 1:length(D.trial)
-            allData(trl,(D.trial(trl).start_end(1)-idx(1)+1:D.trial(trl).start_end(1)-idx(1)+length(D.trial(trl).ppldat(:,2))))...
-                = D.trial(trl).ppldat(:,2);
+        for trl = 1:length(dd.trial)
+            if dd.trial(trl).start_end(1)<idx(1)
+                continue;
+            elseif ismember(trl,empIdx)
+                continue;
+            else
+                allData(trl,(dd.trial(trl).start_end(1)-idx(1)+1:dd.trial(trl).start_end(1)-idx(1)+length(dd.trial(trl).ppldat(:,2))))...
+                    = dd.trial(trl).ppldat(:,2);
+            end
         end
         
         % Load behavior
-        load('02_MH_1_3.mat')
         nn = 0;
         for block = 1:length([Data.condition])
             for trl = 1:length(Data(block).TR)
@@ -158,16 +253,16 @@ for sub = 1
             end
         end
         
-        % Mean
-        D.mean.single_c...
+        % Calculate the mean of each block
+        D.sub(sub).single_c(bb,:)...
             = nanmean(allData(cIdx==1 & eIdx==0,:),1);
-        D.mean.single_p.trained...
+        D.sub(sub).single_p.trained(bb,:)...
             = nanmean(allData(tIdx==1 & cIdx==2 & eIdx==0,:),1);
-        D.mean.single_p.untrained...
+        D.sub(sub).single_p.untrained(bb,:)...
             = nanmean(allData(tIdx==0 & cIdx==2 & eIdx==0,:),1);
-        D.mean.dual.trained...
+        D.sub(sub).dual.trained(bb,:)...
             = nanmean(allData(tIdx==1 & cIdx==3 & eIdx==0,:),1);
-        D.mean.dual.untrained...
+        D.sub(sub).dual.untrained(bb,:)...
             = nanmean(allData(tIdx==0 & cIdx==3 & eIdx==0,:),1);
         
         
@@ -175,56 +270,97 @@ for sub = 1
         for cond = 1:3
             if cond == 1
                 nn=nn+1;
-                dilData=[D.trial(cIdx==cond & eIdx==0).dilation];
-                [nOut,dd] = func_outlier(dilData(~isnan(dilData)));
-                D.dilation(nn) = mean(dd);
-                clear dilData nOut dd
+                dilData=[dd.trial(cIdx==cond & eIdx==0).dilation];
+                [nOut,newdata] = func_outlier(dilData(~isnan(dilData)));
+                D.sub(sub).dilation(bb,nn) = mean(newdata);
+                clear dilData nOut newdata
             else
                 for train = [1 0]
                     nn=nn+1;
-                    dilData=[D.trial(tIdx==train & cIdx==cond & eIdx==0).dilation];
-                    [nOut,dd] = func_outlier(dilData(~isnan(dilData)));
-                    D.dilation(nn) = mean(dd);
-                    clear dilData nOut dd
+                    dilData=[dd.trial(tIdx==train & cIdx==cond & eIdx==0).dilation];
+                    [nOut,newdata] = func_outlier(dilData(~isnan(dilData)));
+                    D.sub(sub).dilation(bb,nn) = mean(newdata);
+                    clear dilData nOut newdata
                 end
             end
         end
         
-        
-        % Plot with sdat to edat range
-        sdat = -3000;
-        edat = 1000;
-        
-        figure(...
-            'InvertHardcopy', 'off',...
-            'Color', [1 1 1],...
-            'Position', [0 0 1600 300]);
-        
-        subplot(1,5,1);
-        plot(sdat:edat,D.mean.single_c(find(idx==sdat):find(idx==edat)));
-        title('Single central')
-        subplot(1,5,2);
-        plot(sdat:edat,D.mean.single_p.trained(find(idx==sdat):find(idx==edat)));
-        title('Single peripheral (trained)')
-        subplot(1,5,3);
-        plot(sdat:edat,D.mean.single_p.untrained(find(idx==sdat):find(idx==edat)));
-        title('Single peripheral (untrained)')
-        subplot(1,5,4);
-        plot(sdat:edat,D.mean.dual.trained(find(idx==sdat):find(idx==edat)));
-        title('Dual (trained)')
-        subplot(1,5,5);
-        plot(sdat:edat,D.mean.dual.untrained(find(idx==sdat):find(idx==edat)));
-        title('Dual (untrained)')
-        
-        for ii=1:5
-            subplot(1,5,ii)
-            hold on;
-            ylim([-.1 .4])
-            plot([0 0],[-0.1 0.4],'--r');
-        end
-        
+        clear allData *Idx
     end % for bb
+    
+    % Calculate the mean of each condition
+    D.mean.single_c(sub,:) = nanmean(D.sub(sub).single_c);
+    D.mean.single_p.trained(sub,:) = nanmean(D.sub(sub).single_p.trained);
+    D.mean.single_p.untrained(sub,:) = nanmean(D.sub(sub).single_p.untrained);
+    D.mean.dual.trained(sub,:) = nanmean(D.sub(sub).dual.trained);
+    D.mean.dual.untrained(sub,:) = nanmean(D.sub(sub).dual.untrained);
+    D.mean.dilation(sub,:) = nanmean(D.sub(sub).dilation);
+    
 end % for sub
+
+% Plot with sdat to edat range
+sdat = -3000;
+edat = 1000;
+
+figure(...
+    'InvertHardcopy', 'off',...
+    'Color', [1 1 1],...
+    'Position', [0 0 1600 600]);
+
+subplot(2,5,1);
+plot(sdat:edat,D.mean.single_c(:,find(idx==sdat):find(idx==edat))')
+title('Single central')
+subplot(2,5,2);
+plot(sdat:edat,D.mean.single_p.trained(:,find(idx==sdat):find(idx==edat))');
+title('Single peripheral (trained)')
+subplot(2,5,3);
+plot(sdat:edat,D.mean.single_p.untrained(:,find(idx==sdat):find(idx==edat))');
+title('Single peripheral (untrained)')
+subplot(2,5,4);
+plot(sdat:edat,D.mean.dual.trained(:,find(idx==sdat):find(idx==edat))');
+title('Dual (trained)')
+subplot(2,5,5);
+plot(sdat:edat,D.mean.dual.untrained(:,find(idx==sdat):find(idx==edat))');
+title('Dual (untrained)')
+
+subplot(2,5,6);
+plot(sdat:edat,...
+    nanmean(D.mean.single_c(:,find(idx==sdat):find(idx==edat)))',...
+    'k','LineWidth',2);
+title('Single central')
+subplot(2,5,7);
+plot(sdat:edat,...
+    nanmean(D.mean.single_p.trained(:,find(idx==sdat):find(idx==edat)))',...
+    'k','LineWidth',2);
+title('Single peripheral (trained)')
+subplot(2,5,8);
+plot(sdat:edat,nanmean(D.mean.single_p.untrained(:,find(idx==sdat):find(idx==edat)))',...
+    'k','LineWidth',2);
+title('Single peripheral (untrained)')
+subplot(2,5,9);
+plot(sdat:edat,nanmean(D.mean.dual.trained(:,find(idx==sdat):find(idx==edat)))',...
+    'k','LineWidth',2);
+title('Dual (trained)')
+subplot(2,5,10);
+plot(sdat:edat,nanmean(D.mean.dual.untrained(:,find(idx==sdat):find(idx==edat)))',...
+    'k','LineWidth',2);
+title('Dual (untrained)')
+
+for ii=1:10
+    subplot(2,5,ii)
+    hold on;
+    
+    if ii<6
+        ylim([-.2 .6])
+        plot([0 0],[-.2 .6],'--r');
+        lgd = legend(name,'Location','northwest');
+        lgd.FontSize = 8;
+    else
+        ylim([-.1 .2])
+        plot([0 0],[-.1 .3],'--r');
+    end
+end
+
 return
 
 function newdata = fillmiss(olddata)
