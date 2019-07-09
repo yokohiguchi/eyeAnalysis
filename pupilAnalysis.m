@@ -1,6 +1,10 @@
 % Pupil analysis
-% written by YH
-% 6/11/2019
+% pupil expansion rate from disk onset to the end -> from disk onset to Disk mask onset
+%--problem--
+% there were many undrawn figures but trial1, 148-150 were drawn 
+
+% changed by RM
+% 7/9/2019
 
 function D = pupilAnalysis
 clear; clear all;
@@ -88,17 +92,27 @@ for sub = 1:nSubject
                 end
             end
             
+       % I(RM) have to make changes from here...(RM)
+       % When I make any changes, there will be original scripts and (RM) as comments.
+       
             % Time
             c.stime = STARTtime(trl,2);
             c.etime = ENDtime(trl,2);
             c.dtime = MSGtime(MSGtime(:,1)==trl & MSGtime(:,3)==2,2); % Disk presentation
+            c.dmtime= MSGtime(MSGtime(:,1)==trl & MSGtime(:,3)==20,2); % Disk mask presentation(RM)
             
             if isempty(c.dtime)
                 c.dtime = MSGtime(MSGtime(:,1)==trl & MSGtime(:,3)==1,2)+8;
             end
             
+            % if there is no dmtime, what number should be added?(RM)
+            if isempty(c.dmtime)
+                c.dmtime= MSGtime(MSGtime(:,1)==trl & MSGtime(:,3)==2,2)+33;
+            end
+            
             % Rawdata(trl,time,x,y,pupil size, 0)
-            c.trl_RawData = RawData(RawData(:,2)>=c.stime & RawData(:,2)<=c.etime,:);
+            %c.trl_RawData = RawData(RawData(:,2)>=c.stime & RawData(:,2)<=c.etime,:);
+            c.trl_RawData = RawData(RawData(:,2)>=c.dtime & RawData(:,2)<=c.dmtime,:); %RM
             c.nData = size(c.trl_RawData,1);
             
             if c.nData < 50
@@ -116,10 +130,12 @@ for sub = 1:nSubject
                 clear c idx
             else
                 if gType == 2
-                    c.trl_RawData(:,5) =(c.trl_RawData(:,5)/2).^2*pi/10000;
+                    c.trl_RawData(:,5) =(c.trl_RawData(:,5)/2).^2*pi/10000; % the area of pupil(RM)
                 end
                 
+                %original
                 c.start_end = [c.trl_RawData(1,2)-c.dtime c.trl_RawData(end,2)-c.dtime];
+                c.start_end = [c.dtime c.dmtime-c.dtime];
                 
                 c.tRawData = c.trl_RawData;
                 
@@ -172,6 +188,7 @@ for sub = 1:nSubject
                 c.ppldat(:,1) = idx;
                 
                 for ii = 1:length(idx)
+                    %l = find(idx(ii)==c.tRawData(:,2)-c.dtime);
                     l = find(idx(ii)==c.tRawData(:,2)-c.dtime);
                     if isempty(l)
                         c.ppldat(ii,2) = NaN;
